@@ -1,23 +1,23 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/widgets.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:uber_clone/requests/google_maps_requests.dart';
 
 class AppState with ChangeNotifier {
-  static LatLng _initialPosition;
-  LatLng _lastPosition = _initialPosition;
+  LatLng? _initialPosition;
+  LatLng _lastPosition = const LatLng(0.0, 0.0);
   bool locationServiceActive = true;
   final Set<Marker> _markers = {};
   final Set<Polyline> _polyLines = {};
-  GoogleMapController _mapController;
-  GoogleMapsServices _googleMapsServices = GoogleMapsServices();
-  TextEditingController locationController = TextEditingController();
-  TextEditingController destinationController = TextEditingController();
-  LatLng get initialPosition => _initialPosition;
+  GoogleMapController? _mapController;
+  final GoogleMapsServices _googleMapsServices = GoogleMapsServices();
+  final TextEditingController locationController = TextEditingController();
+  final TextEditingController destinationController = TextEditingController();
+
+  LatLng? get initialPosition => _initialPosition;
   LatLng get lastPosition => _lastPosition;
   GoogleMapsServices get googleMapsServices => _googleMapsServices;
-  GoogleMapController get mapController => _mapController;
+  GoogleMapController? get mapController => _mapController;
   Set<Marker> get markers => _markers;
   Set<Polyline> get polyLines => _polyLines;
 
@@ -25,43 +25,47 @@ class AppState with ChangeNotifier {
     _getUserLocation();
     _loadingInitialPosition();
   }
-// ! TO GET THE USERS LOCATION
-  void _getUserLocation() async {
-    print("GET USER METHOD RUNNING =========");
-    Position position = await Geolocator()
-        .getCurrentPosition(desiredAccuracy: LocationAccuracy.high);
-    List<Placemark> placemark = await Geolocator()
-        .placemarkFromCoordinates(position.latitude, position.longitude);
-    _initialPosition = LatLng(position.latitude, position.longitude);
-    print("the latitude is: ${position.longitude} and th longitude is: ${position.longitude} ");
-    print("initial position is : ${_initialPosition.toString()}");
-    locationController.text = placemark[0].name;
-    notifyListeners();
+
+  // Get the user's location
+  Future<void> _getUserLocation() async {
+    try {
+      Position position = await Geolocator.getCurrentPosition(
+          desiredAccuracy: LocationAccuracy.high);
+      List<Placemark> placemarks = await Geolocator.placemarkFromCoordinates(
+          position.latitude, position.longitude);
+      _initialPosition = LatLng(position.latitude, position.longitude);
+      locationController.text = placemarks.first.name ?? '';
+      notifyListeners();
+    } catch (e) {
+      print("Error fetching user location: $e");
+    }
   }
 
-  // ! TO CREATE ROUTE
-  void createRoute(String encondedPoly) {
+  // Create route
+  void createRoute(String encodedPoly) {
     _polyLines.add(Polyline(
-        polylineId: PolylineId(_lastPosition.toString()),
-        width: 10,
-        points: _convertToLatLng(_decodePoly(encondedPoly)),
-        color: Colors.black));
+      polylineId: PolylineId(_lastPosition.toString()),
+      width: 10,
+      points: _convertToLatLng(_decodePoly(encodedPoly)),
+      color: Colors.black,
+    ));
     notifyListeners();
   }
 
-  // ! ADD A MARKER ON THE MAO
+  // Add a marker on the map
   void _addMarker(LatLng location, String address) {
     _markers.add(Marker(
-        markerId: MarkerId(_lastPosition.toString()),
-        position: location,
-        infoWindow: InfoWindow(title: address, snippet: "go here"),
-        icon: BitmapDescriptor.defaultMarker));
+      markerId: MarkerId(location.toString()),
+      position: location,
+      infoWindow: InfoWindow(title: address, snippet: "Go here"),
+      icon: BitmapDescriptor.defaultMarker,
+    ));
     notifyListeners();
   }
 
-  // ! CREATE LAGLNG LIST
+  // Convert to LatLng list
   List<LatLng> _convertToLatLng(List points) {
-    List<LatLng> result = <LatLng>[];
+    List<LatLng> result = [];
     for (int i = 0; i < points.length; i++) {
       if (i % 2 != 0) {
         result.add(LatLng(points[i - 1], points[i]));
@@ -70,71 +74,73 @@ class AppState with ChangeNotifier {
     return result;
   }
 
-  // !DECODE POLY
+  // Decode polyline
   List _decodePoly(String poly) {
     var list = poly.codeUnits;
-    var lList = new List();
+    var lList = <double>[];
     int index = 0;
     int len = poly.length;
     int c = 0;
-// repeating until all attributes are decoded
+
+    // Decoding attributes
     do {
-      var shift = 0;
+      int shift = 0;
       int result = 0;
 
-      // for decoding value of one attribute
+      // Decode one attribute
       do {
         c = list[index] - 63;
         result |= (c & 0x1F) << (shift * 5);
         index++;
         shift++;
       } while (c >= 32);
-      /* if value is negetive then bitwise not the value */
+
+      // Check if negative
       if (result & 1 == 1) {
         result = ~result;
       }
-      var result1 = (result >> 1) * 0.00001;
+      double result1 = (result >> 1) * 0.00001;
       lList.add(result1);
     } while (index < len);
 
-/*adding to previous value as done in encoding */
+    // Add to previous value
     for (var i = 2; i < lList.length; i++) lList[i] += lList[i - 2];
-
-    print(lList.toString());
 
     return lList;
   }
 
-  // ! SEND REQUEST
-  void sendRequest(String intendedLocation) async {
-    List<Placemark> placemark =
-        await Geolocator().placemarkFromAddress(intendedLocation);
-    double latitude = placemark[0].position.latitude;
-    double longitude = placemark[0].position.longitude;
-    LatLng destination = LatLng(latitude, longitude);
-    _addMarker(destination, intendedLocation);
-    String route = await _googleMapsServices.getRouteCoordinates(
-        _initialPosition, destination);
-    createRoute(route);
-    notifyListeners();
+  // Send request to fetch route
+  Future<void> sendRequest(String intendedLocation) async {
+    try {
+      List<Placemark> placemarks =
+          await Geolocator.placemarkFromAddress(intendedLocation);
+      LatLng destination = LatLng(
+          placemarks.first.position.latitude, placemarks.first.position.longitude);
+      _addMarker(destination, intendedLocation);
+      String route = await _googleMapsServices.getRouteCoordinates(
+          _initialPosition!, destination);
+      createRoute(route);
+    } catch (e) {
+      print("Error sending request: $e");
+    }
   }
 
-  // ! ON CAMERA MOVE
+  // Handle camera movement
   void onCameraMove(CameraPosition position) {
     _lastPosition = position.target;
     notifyListeners();
   }
 
-  // ! ON CREATE
+  // Initialize map controller
   void onCreated(GoogleMapController controller) {
     _mapController = controller;
     notifyListeners();
   }
 
-//  LOADING INITIAL POSITION
-  void _loadingInitialPosition()async{
-    await Future.delayed(Duration(seconds: 5)).then((v) {
-      if(_initialPosition == null){
+  // Loading initial position
+  Future<void> _loadingInitialPosition() async {
+    await Future.delayed(const Duration(seconds: 5)).then((_) {
+      if (_initialPosition == null) {
         locationServiceActive = false;
         notifyListeners();
       }
