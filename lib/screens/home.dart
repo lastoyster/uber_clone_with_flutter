@@ -5,9 +5,9 @@ import 'package:provider/provider.dart';
 import 'package:uber_clone/states/app_state.dart';
 
 class MyHomePage extends StatefulWidget {
-  MyHomePage({Key key, this.title}) : super(key: key);
-
   final String title;
+
+  const MyHomePage({Key? key, required this.title}) : super(key: key);
 
   @override
   _MyHomePageState createState() => _MyHomePageState();
@@ -16,47 +16,48 @@ class MyHomePage extends StatefulWidget {
 class _MyHomePageState extends State<MyHomePage> {
   @override
   Widget build(BuildContext context) {
-    return Scaffold(body: Map());
+    return Scaffold(body: MapWidget());
   }
 }
 
-class Map extends StatefulWidget {
+class MapWidget extends StatefulWidget {
   @override
-  _MapState createState() => _MapState();
+  _MapWidgetState createState() => _MapWidgetState();
 }
 
-class _MapState extends State<Map> {
+class _MapWidgetState extends State<MapWidget> {
   @override
   Widget build(BuildContext context) {
     final appState = Provider.of<AppState>(context);
+
     return SafeArea(
       child: appState.initialPosition == null
-          ? Container(
+          ? Center(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
-                children: <Widget>[
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: <Widget>[
-              SpinKitRotatingCircle(
-              color: Colors.black,
-                size: 50.0,
-              )
-                    ],
+                children: [
+                  const SpinKitRotatingCircle(
+                    color: Colors.black,
+                    size: 50.0,
                   ),
-                  SizedBox(height: 10,),
+                  const SizedBox(height: 10),
                   Visibility(
-                    visible: appState.locationServiceActive == false,
-                    child: Text("Please enable location services!", style: TextStyle(color: Colors.grey, fontSize: 18),),
-                  )
+                    visible: !appState.locationServiceActive,
+                    child: const Text(
+                      "Please enable location services!",
+                      style: TextStyle(color: Colors.grey, fontSize: 18),
+                    ),
+                  ),
                 ],
-              )
+              ),
             )
           : Stack(
-              children: <Widget>[
+              children: [
                 GoogleMap(
                   initialCameraPosition: CameraPosition(
-                      target: appState.initialPosition, zoom: 10.0),
+                    target: appState.initialPosition!,
+                    zoom: 10.0,
+                  ),
                   onMapCreated: appState.onCreated,
                   myLocationEnabled: true,
                   mapType: MapType.normal,
@@ -65,100 +66,71 @@ class _MapState extends State<Map> {
                   onCameraMove: appState.onCameraMove,
                   polylines: appState.polyLines,
                 ),
-
-                Positioned(
+                _buildTextField(
+                  controller: appState.locationController,
+                  hint: "Pick up",
+                  icon: Icons.location_on,
                   top: 50.0,
-                  right: 15.0,
-                  left: 15.0,
-                  child: Container(
-                    height: 50.0,
-                    width: double.infinity,
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(3.0),
-                      color: Colors.white,
-                      boxShadow: [
-                        BoxShadow(
-                            color: Colors.grey,
-                            offset: Offset(1.0, 5.0),
-                            blurRadius: 10,
-                            spreadRadius: 3)
-                      ],
-                    ),
-                    child: TextField(
-                      cursorColor: Colors.black,
-                      controller: appState.locationController,
-                      decoration: InputDecoration(
-                        icon: Container(
-                          margin: EdgeInsets.only(left: 20, top: 5),
-                          width: 10,
-                          height: 10,
-                          child: Icon(
-                            Icons.location_on,
-                            color: Colors.black,
-                          ),
-                        ),
-                        hintText: "pick up",
-                        border: InputBorder.none,
-                        contentPadding: EdgeInsets.only(left: 15.0, top: 16.0),
-                      ),
-                    ),
-                  ),
                 ),
-
-                Positioned(
+                _buildTextField(
+                  controller: appState.destinationController,
+                  hint: "Destination?",
+                  icon: Icons.local_taxi,
                   top: 105.0,
-                  right: 15.0,
-                  left: 15.0,
-                  child: Container(
-                    height: 50.0,
-                    width: double.infinity,
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(3.0),
-                      color: Colors.white,
-                      boxShadow: [
-                        BoxShadow(
-                            color: Colors.grey,
-                            offset: Offset(1.0, 5.0),
-                            blurRadius: 10,
-                            spreadRadius: 3)
-                      ],
-                    ),
-                    child: TextField(
-                      cursorColor: Colors.black,
-                      controller: appState.destinationController,
-                      textInputAction: TextInputAction.go,
-                      onSubmitted: (value) {
-                        appState.sendRequest(value);
-                      },
-                      decoration: InputDecoration(
-                        icon: Container(
-                          margin: EdgeInsets.only(left: 20, top: 5),
-                          width: 10,
-                          height: 10,
-                          child: Icon(
-                            Icons.local_taxi,
-                            color: Colors.black,
-                          ),
-                        ),
-                        hintText: "destination?",
-                        border: InputBorder.none,
-                        contentPadding: EdgeInsets.only(left: 15.0, top: 16.0),
-                      ),
-                    ),
-                  ),
+                  onSubmitted: appState.sendRequest,
                 ),
-
-//        Positioned(
-//          top: 40,
-//          right: 10,
-//          child: FloatingActionButton(onPressed: _onAddMarkerPressed,
-//          tooltip: "aadd marker",
-//          backgroundColor: black,
-//          child: Icon(Icons.add_location, color: white,),
-//          ),
-//        )
               ],
             ),
     );
   }
+
+  // Helper method to build the TextFields
+  Widget _buildTextField({
+    required TextEditingController controller,
+    required String hint,
+    required IconData icon,
+    required double top,
+    void Function(String)? onSubmitted,
+  }) {
+    return Positioned(
+      top: top,
+      right: 15.0,
+      left: 15.0,
+      child: Container(
+        height: 50.0,
+        width: double.infinity,
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(3.0),
+          color: Colors.white,
+          boxShadow: [
+            BoxShadow(
+              color: Colors.grey,
+              offset: Offset(1.0, 5.0),
+              blurRadius: 10,
+              spreadRadius: 3,
+            ),
+          ],
+        ),
+        child: TextField(
+          cursorColor: Colors.black,
+          controller: controller,
+          textInputAction: TextInputAction.go,
+          onSubmitted: onSubmitted,
+          decoration: InputDecoration(
+            icon: Padding(
+              padding: const EdgeInsets.only(left: 20, top: 5),
+              child: Icon(
+                icon,
+                color: Colors.black,
+              ),
+            ),
+            hintText: hint,
+            border: InputBorder.none,
+            contentPadding: const EdgeInsets.only(left: 15.0, top: 16.0),
+          ),
+        ),
+      ),
+    );
+  }
 }
+
